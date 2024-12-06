@@ -1,0 +1,11 @@
+.dashboardContainer {
+    @apply min-h-screen bg-gray-50;
+  }
+  
+  .leftSidebar {
+    @apply bg-white shadow-lg p-6 w-80 overflow-y-auto;
+  }
+  
+  .mainContent {
+    @apply flex-1 p-6 overflow-y-auto;
+  }

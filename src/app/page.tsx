@@ -1,6 +1,6 @@
 import React from 'react';
 //import ThresholdScore from "./top/ThresholdScoreProps";
-import Dashboard  from "./dash/dashboard";
+import Dashboard  from "./mainDashboard/dashboard";
 
 
 

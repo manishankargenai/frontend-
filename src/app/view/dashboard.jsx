@@ -1,18 +1,18 @@
 "use client";
 import React from 'react';
-import Header from '../dash/head';
-import SearchBar from '../dash/sear';
-import ActionButtons from '../dash/act';
-import ThresholdScore from '../dash/thres';
-import JobDescription from '../dash/jobdesc';
-import Resume from '../dash/resume';
-import CommunicationSkills from '../dash/commun';
-import Coding from '../dash/coding';
-import BehaviouralSkills from '../dash/behave';
-import CommonDashboard from '../dash/common';
-import HRSystem from '../dash/hr';
+import Header from '../components/head';
+import SearchBar from '../mainDashboard/sear';
+import ActionButtons from '../components/act';
+import ThresholdScore from '../mainDashboard/thres';
+import JobDescription from '../mainDashboard/jobdesc';
+import Resume from '../mainDashboard/resume';
+import CommunicationSkills from '../mainDashboard/commun';
+import Coding from '../mainDashboard/coding';
+import BehaviouralSkills from '../mainDashboard/behave';
+import CommonDashboard from '../mainDashboard/common';
+import HRSystem from '../mainDashboard/hr';
 import Image from 'next/image';
-import ProfileActions from '../top/profile';
+import ProfileActions from '../pages/threshold/profile';
 
 <Image src="/your-image-source.jpg" alt="description" width={500} height={500} />
 
