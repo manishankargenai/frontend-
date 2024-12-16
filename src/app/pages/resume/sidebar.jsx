@@ -1,5 +1,6 @@
+
 "use client";
-import { useState , useEffect} from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 
 export default function Dashboard() {
@@ -15,15 +16,12 @@ export default function Dashboard() {
   const [samplePrompts, setSamplePrompts] = useState([]);
   const [dashboardHistory, setDashboardHistory] = useState([]);
   const [customDashboard, setCustomDashboard] = useState(null);
- 
-
 
   useEffect(() => {
     if (selectedFile) {
       handleGenerateSamplePrompts();
     }
   }, [samplePromptCount]);
-  
 
   const handleFileChange = (e) => {
     if (e.target.files[0]) {
@@ -56,15 +54,23 @@ export default function Dashboard() {
       formData.append("file", selectedFile);
       formData.append("num_sections", dashboardCount.toString());
 
-      const response = await fetch("http://localhost:8000/api/generate-dashboards", {
+      const response = await fetch("http://localhost:8000/api/v1/resume/generate-dashboards", {
         method: "POST",
         body: formData,
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
-      if (data.status === "success") {
+      if (data.status === "success" && data.dashboards) {
         setDashboards(data.dashboards);
-        setHistory((prev) => [...prev, `Created ${dashboardCount} dashboards`]);
+        setHistory((prev) => [...prev, {
+          type: 'dashboards',
+          timestamp: new Date().toLocaleString(),
+          content: data.dashboards
+        }]);
       } else {
         throw new Error(data.error || "Failed to create dashboards");
       }
@@ -75,6 +81,7 @@ export default function Dashboard() {
       setIsLoading(false);
     }
   };
+
   const handleGenerateSamplePrompts = async () => {
     if (!selectedFile) {
       alert("Please select a resume file first");
@@ -82,12 +89,17 @@ export default function Dashboard() {
     }
     const formData = new FormData();
     formData.append("file", selectedFile);
-    formData.append("num_prompts", samplePromptCount);
+    formData.append("num_prompts", samplePromptCount.toString());
+
     try {
-      const response = await fetch("http://localhost:8000/api/generate-sample-prompts", {
+      const response = await fetch("http://localhost:8000/api/v1/resume/generate-sample-prompts", {
         method: "POST",
         body: formData,
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const data = await response.json();
       if (data.status === "success") {
@@ -100,30 +112,46 @@ export default function Dashboard() {
       alert(`Failed to generate sample prompts: ${error.message}`);
     }
   };
-  // Update the runPrompt function
-const runPrompt = async () => {
-  if (!prompt.trim()) {
-    alert("Prompt cannot be empty");
-    return;
-  }
 
-  try {
-    const response = await fetch("http://localhost:8000/api/generate-custom-dashboard", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ prompt }),
-    });
-    const data = await response.json();
-    setDashboards([data.dashboard_content]); // This will display the custom dashboard in the existing layout
-    setDashboardCount(1);
-    setHistory((prev) => [...prev, prompt]);
-  } catch (error) {
-    console.error("Error:", error);
-    alert("Failed to generate custom dashboard");
-  }
-};
+  const runPrompt = async () => {
+    if (!prompt.trim() || !selectedFile) {
+      alert("Please select a file and enter a prompt");
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("prompt", prompt);
+
+      const response = await fetch("http://localhost:8000/api/v1/resume/generate-custom-dashboard", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.status === "success") {
+        const formattedDashboard = `Custom Dashboard\n${data.dashboard}`;
+        setDashboards([formattedDashboard]);
+        setDashboardCount(1);
+        setHistory((prev) => [...prev, {
+          type: 'prompt',
+          timestamp: new Date().toLocaleString(),
+          content: { prompt }
+        }]);
+      } else {
+        throw new Error(data.error || "Failed to generate custom dashboard");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      alert(`Failed to generate custom dashboard: ${error.message}`);
+    }
+  };
+
   return (
     <div className="flex min-h-screen w-full bg-gray-50">
       <div className="w-96 bg-white shadow-lg p-6">
@@ -287,36 +315,41 @@ const runPrompt = async () => {
 
       <div className="flex-1 p-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
-          {Array.from({ length: Math.min(dashboardCount, 9) }).map((_, index) => (
-            <div
-              key={index}
-              className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow h-[300px] flex flex-col"
-            >
-              <h3 className="flex gap-4 text-lg font-semibold mb-4 bg-blue-100 p-2 rounded-md">
-                {dashboards[index]?.split("\n")[0] || `Dashboard ${index + 1}`}
-                <Link
-  href={`/pages/skill?title=${encodeURIComponent(dashboards[index]?.split("\n")[0] || `Dashboard ${index + 1}`)}&content=${encodeURIComponent(dashboards[index]?.split("\n").slice(1).join("\n") || "")}`}
->
-  <button className="flex items-center space-x-2">
-    <img
-      loading="lazy"
-      src="https://cdn.builder.io/api/v1/image/assets/TEMP/e11855dda7740b815a1769ac261bf7c96c31c01f29013ab3ab201affaf981b5f"
-      alt=""
-      className="w-6 h-6"
-    />
-  </button>
-</Link>
-
-              </h3>
-              <div className="prose max-w-none flex-grow overflow-auto">
-                <pre className="whitespace-pre-wrap text-sm">
-                  {dashboards[index]?.split("\n").slice(1).join("\n") || "Content not available"}
-                </pre>
+          {dashboards.slice(0, Math.min(dashboardCount, 9)).map((dashboard, index) => {
+            const parts = (dashboard || "").split("\n");
+            const title = parts[0] || `Dashboard ${index + 1}`;
+            const content = parts.slice(1).join("\n") || "";
+            
+            return (
+              <div
+                key={index}
+                className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow h-[300px] flex flex-col"
+              >
+                <h3 className="flex justify-between items-center text-lg font-semibold mb-4 bg-blue-100 p-2 rounded-md">
+                  <span className="truncate mr-2">{title}</span>
+                  <Link
+                    href={`/pages/skill?title=${encodeURIComponent(title)}&content=${encodeURIComponent(content)}`}
+                  >
+                    <button className="flex items-center p-1 hover:bg-blue-200 rounded-full transition-colors">
+                      <img
+                        loading="lazy"
+                        src="https://cdn.builder.io/api/v1/image/assets/TEMP/e11855dda7740b815a1769ac261bf7c96c31c01f29013ab3ab201affaf981b5f"
+                        alt="Expand"
+                        className="w-6 h-6"
+                      />
+                    </button>
+                  </Link>
+                </h3>
+                <div className="prose max-w-none flex-grow overflow-auto">
+                  <pre className="whitespace-pre-wrap text-sm">
+                    {content}
+                  </pre>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
-    </div>
-  );
+    </div>
+  );
 }

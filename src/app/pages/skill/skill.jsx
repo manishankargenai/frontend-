@@ -20,14 +20,25 @@ export default function Skill() {
   useEffect(() => {
     const title = searchParams.get('title');
     const content = searchParams.get('content');
-    if (title) {
-      setDashboardTitle(decodeURIComponent(title));
+    
+    try {
+        if (title) {
+            const decodedTitle = decodeURIComponent(title.replace(/\+/g, ' '));
+            setDashboardTitle(decodedTitle);
+        }
+        
+        if (content) {
+            const decodedContent = decodeURIComponent(content.replace(/\+/g, ' '));
+            setDashboardContent(decodedContent);
+        }
+    } catch (error) {
+        console.error('Error decoding URL parameters:', error);
+        // Set fallback values if decoding fails
+        setDashboardTitle(title || '');
+        setDashboardContent(content || '');
     }
-    if (content) {
-      const decodedContent = decodeURIComponent(content);
-      setDashboardContent(decodedContent);
-    }
-  }, [searchParams]);
+}, [searchParams]);
+
 
   const handleGenerateQA = async () => {
     try {
@@ -36,7 +47,7 @@ export default function Skill() {
       formData.append("section_content", dashboardContent);
       formData.append("num_questions", qaGenerationScale.toString());
 
-      const response = await fetch('http://localhost:8000/api/generate-qa', {
+      const response = await fetch('http://localhost:8000/api/v1/resume/generate-qa', {
         method: 'POST',
         body: formData,
       });

@@ -191,11 +191,10 @@ const MeetingQAConverterPreview = ({ onGenerateQA, onEvaluationUpdate }) => {
     }
  
   };
- 
   const handleRecordingClick = async () => {
     if (recordingState === 'idle' || recordingState === 'readyForQuestion') {
       try {
-        const response = await fetch('http://localhost:8000/api/start-recording', {
+        const response = await fetch('http://localhost:8000/api/v1/jd/start-recording', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -206,94 +205,55 @@ const MeetingQAConverterPreview = ({ onGenerateQA, onEvaluationUpdate }) => {
         if (response.ok) {
           setRecordingState('recordingQuestion');
         } else {
-          throw new Error('Failed to start recording');
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to start recording');
         }
       } catch (error) {
         console.error('Error starting recording:', error);
-        alert('Failed to start recording');
+        alert(error.message);
       }
     } else if (recordingState === 'recordingQuestion') {
       try {
-        const response = await fetch('http://localhost:8000/api/stop-recording', {
+        const response = await fetch('http://localhost:8000/api/v1/jd/stop-recording', {
           method: 'POST'
         });
  
         if (response.ok) {
           const data = await response.json();
-          setCurrentAudioFilename(data.filename);
+         
+          if (data.status === 'success' && data.filename) {
+            setCurrentAudioFilename(data.filename);
  
-          const transcribeResponse = await fetch(`http://localhost:8000/api/transcribe?filename=${data.filename}`, {
-            method: 'POST'
-          });
+            const transcribeResponse = await fetch(`http://localhost:8000/api/v1/jd/transcribe-audio?audio_file=${data.filename}`, {
+              method: 'POST'
+            });
  
-          if (transcribeResponse.ok) {
-            const transcribeData = await transcribeResponse.json();
-            const newQuestionText = `Question: ${transcribeData.text}?`;
-            setCurrentQuestionText(newQuestionText);
-            setRecordingState('readyForAnswer');
+            if (transcribeResponse.ok) {
+              const transcribeData = await transcribeResponse.json();
+             
+              if (transcribeData.status === 'success') {
+                const newQuestionText = `Question: ${transcribeData.text}?`;
+                setCurrentQuestionText(newQuestionText);
+                setRecordingState('readyForAnswer');
+              } else {
+                throw new Error(transcribeData.error || 'Transcription failed');
+              }
+            } else {
+              throw new Error('Transcription request failed');
+            }
+          } else {
+            throw new Error('Failed to stop recording');
           }
+        } else {
+          throw new Error('Stop recording request failed');
         }
       } catch (error) {
         console.error('Error stopping question recording:', error);
-        alert('Failed to stop recording');
+        alert(error.message);
         setRecordingState('idle');
       }
-    } else if (recordingState === 'readyForAnswer' || recordingState === 'idle') {
-      try {
-        const response = await fetch('http://localhost:8000/api/start-recording', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ source: 'microphone' })
-        });
- 
-        if (response.ok) {
-          setRecordingState('recordingAnswer');
-        } else {
-          throw new Error('Failed to start recording');
-        }
-      } catch (error) {
-        console.error('Error starting answer recording:', error);
-        alert('Failed to start recording');
-      }
-    } else if (recordingState === 'recordingAnswer') {
-      try {
-        const response = await fetch('http://localhost:8000/api/stop-recording', {
-          method: 'POST'
-        });
- 
-        if (response.ok) {
-          const data = await response.json();
-          setCurrentAudioFilename(data.filename);
- 
-          const transcribeResponse = await fetch(`http://localhost:8000/api/transcribe?filename=${data.filename}`, {
-            method: 'POST'
-          });
- 
-          if (transcribeResponse.ok) {
-            const transcribeData = await transcribeResponse.json();
-            const newAnswerText = `Answer: ${transcribeData.text}.`;
-            setCurrentAnswerText(newAnswerText);
-           
-            // Add current question to questionTexts only if not already present
-            if (currentQuestionText && !questionTexts.includes(currentQuestionText)) {
-              setQuestionTexts(prev => [...prev, currentQuestionText]);
-            }
-           
-            // Add current answer to answerTexts
-            setAnswerTexts(prev => [...prev, newAnswerText]);
-           
-            setRecordingState('readyForQuestion');
-          }
-        }
-      } catch (error) {
-        console.error('Error stopping answer recording:', error);
-        alert('Failed to stop recording');
-        setRecordingState('idle');
-      }
-    }
-  };
+    }  
+};
  
   const handleMapAnswer = async () => {
     if (!currentQuestionText || !currentAnswerText) {
@@ -302,7 +262,7 @@ const MeetingQAConverterPreview = ({ onGenerateQA, onEvaluationUpdate }) => {
     }
  
     try {
-      const response = await fetch('http://localhost:8000/api/evaluate-answer', {
+      const response = await fetch('http://localhost:8000/api/v1/jd/evaluate-answer', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -363,7 +323,7 @@ const MeetingQAConverterPreview = ({ onGenerateQA, onEvaluationUpdate }) => {
     }
  
     try {
-      const response = await fetch('http://localhost:8000/api/generate-qa', {
+      const response = await fetch('http://localhost:8000/api/v1/jd/generate-qa', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -518,7 +478,7 @@ const MeetingQAConverterPreview = ({ onGenerateQA, onEvaluationUpdate }) => {
           </div>
         </div>
       </div>
-    
+   
   );
 };
 
@@ -679,7 +639,7 @@ const DashboardView = ({
  
   const handleGenerateQA = async () => {
   try {
-  const response = await fetch('http://localhost:8000/api/generate-qa', {
+  const response = await fetch('http://localhost:8000/api/v1/jd/generate-qa', {
   method: 'POST',
   headers: {
   'Content-Type': 'application/json',
@@ -936,7 +896,7 @@ const Dashboard = () => {
     formData.append('file', file);
    
     try {
-      const response = await fetch('http://localhost:8000/api/upload-file/', {
+      const response = await fetch('http://localhost:8000/api/v1/jd/upload-file/', {
         method: 'POST',
         body: formData
       });
@@ -978,7 +938,7 @@ const Dashboard = () => {
         formData.append('scale', scale);
         formData.append('dashboard_index', index);
 
-        const response = await fetch('http://localhost:8000/api/generate-dashboard/', {
+        const response = await fetch('http://localhost:8000/api/v1/jd/generate-dashboard/', {
           method: 'POST',
           body: formData
         });
@@ -1024,7 +984,7 @@ const Dashboard = () => {
       formData.append('scale', 1);
       formData.append('dashboard_index', 0);
 
-      const response = await fetch('http://localhost:8000/api/generate-dashboard/', {
+      const response = await fetch('http://localhost:8000/api/v1/jd/generate-dashboard/', {
         method: 'POST',
         body: formData
       });
@@ -1046,42 +1006,39 @@ const Dashboard = () => {
     }
   };
 
-  const handleGenerateQA = async (dashboardContent, index, numQA = 5) => {
+const handleGenerateQA = async (dashboardContent, index, numQA = 5) => {
     setIsLoading(true);
     setError('');
-
+ 
     try {
       const formData = new FormData();
       formData.append('dashboard_content', dashboardContent);
-      formData.append('num_qa', numQA);
-
-      const response = await fetch('http://localhost:8000/api/generate-qa/', {
+      formData.append('num_qa', numQA); // Use 'num_qa' to match backend
+ 
+      const response = await fetch('http://localhost:8000/api/v1/jd/generate-qa/', {
         method: 'POST',
         body: formData
       });
-
+ 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-
+ 
       const data = await response.json();
      
-      const formattedQA = data.content.split('\n').map((line, idx) => {
-        if (line.startsWith('Q:')) {
-          return `Q${Math.floor(idx/2) + 1}: ${line.substring(2).trim()}`;
-        } else if (line.startsWith('A:')) {
-          return `A${Math.floor(idx/2) + 1}: ${line.substring(2).trim()}`;
-        }
-        return line;
-      }).join('\n');
-
-      setQaContents(prev => ({
-        ...prev,
-        [index === 'prompt' ? 'prompt' : index]: formattedQA
-      }));
-
+      // Directly use the content as it's already formatted
+      if (data.status === 'success' && data.content) {
+        setQaContents(prev => ({
+          ...prev,
+          [index === 'prompt' ? 'prompt' : index]: data.content
+        }));
+      } else {
+        throw new Error('Invalid response format');
+      }
+ 
     } catch (error) {
       setError(error.message || 'Error generating Q&A');
+      console.error('Q&A Generation Error:', error);
     } finally {
       setIsLoading(false);
     }

@@ -41,7 +41,7 @@ export default function Sidebar({ roles, skills_data, sendRangeValue, sendSelect
         };
 
         try {
-            const response = await fetch("http://127.0.0.1:8000/create-dashboards/", {
+            const response = await fetch("http://127.0.0.1:8000//api/v1/job/create-dashboards/", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -57,8 +57,7 @@ export default function Sidebar({ roles, skills_data, sendRangeValue, sendSelect
             } else {
                 setMessage(data.detail || "Failed to create dashboards");
             }
-        } catch (error) {
-            console.log("Error creating dashboards:", error);
+        } catch (error) {            console.log("Error creating dashboards:", error);
             setMessage("Error creating dashboards");
         }
     };

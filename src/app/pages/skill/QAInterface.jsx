@@ -20,6 +20,13 @@ const QAInterface = ({
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [followUpQuestions, setFollowUpQuestions] = useState([]);
   
+  const toggleQuestion = (index) => {
+    setExpandedQuestions(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
 
   // Color Configuration
   const colorPairs = [
@@ -58,140 +65,134 @@ const QAInterface = ({
   }, []);
 
   // Recording Handler
-  const handleRecordingClick = async (type) => {
-    if (recordingState === "idle") {
-      try {
-        const response = await fetch("http://localhost:8000/api/start-recording", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type })
-        });
+  // Update the recording endpoints to match your backend
 
-        if (response.ok) {
-          setRecordingState(type === 'question' ? 'recordingQuestion' : 'recordingAnswer');
-        } else {
-          throw new Error('Failed to start recording');
-        }
-      } catch (error) {
-        console.error("Start recording error:", error);
-        alert("Failed to start recording");
-      }
-    } else {
-      try {
-        setIsTranscribing(true);
-        const stopResponse = await fetch("http://localhost:8000/api/stop-recording", {
-          method: "POST"
-        });
-
-        if (!stopResponse.ok) {
-          throw new Error('Failed to stop recording');
-        }
-
-        const { filename } = await stopResponse.json();
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const transcribeResponse = await fetch(
-          `http://localhost:8000/api/transcribe?filename=${encodeURIComponent(filename)}`,
-          { method: "POST" }
-        );
-
-        if (!transcribeResponse.ok) {
-          throw new Error('Transcription failed');
-        }
-
-        const { text } = await transcribeResponse.json();
-        
-        if (recordingState === "recordingQuestion") {
-          setQuestionText(text);
-        } else {
-          setAnswerText(text);
-        }
-      } catch (error) {
-        console.error("Recording error:", error);
-        alert("Recording failed: " + error.message);
-      } finally {
-        setRecordingState("idle");
-        setIsTranscribing(false);
-      }
-    }
-  };
-
-  // Answer Evaluation Handler
-  const handleMapAnswer = async () => {
-    if (!questionText || !answerText) {
+// Add this function at the component level, outside of any other functions
+const handleMapAnswer = async () => {
+  if (!questionText || !answerText) {
       alert('Please record both question and answer first');
       return;
-    }
-    
-    try {
-      const response = await fetch('http://localhost:8000/api/evaluate-answer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          question: questionText,
-          answer: answerText
-        })
+  }
+
+  try {
+      const formData = new FormData();
+      formData.append('question', questionText);
+      formData.append('answer', answerText);
+
+      const response = await fetch('http://localhost:8000/api/v1/resume/evaluate-answer', {
+          method: 'POST',
+          body: formData
       });
-      
+
       const data = await response.json();
-      
-      if (data?.evaluation) {
-        setEvaluation(data.evaluation);
-        setChartData({
-          labels: ['Technical', 'Clarity', 'Completeness'],
-          datasets: [{
-            data: [
-              data.evaluation.technical || 0,
-              data.evaluation.clarity || 0,
-              data.evaluation.completeness || 0
-            ],
-            backgroundColor: ['#4F46E5', '#10B981', '#F59E0B']
-          }]
-        });
+
+      if (data.status === "success" && data.evaluation) {
+          const evaluation = data.evaluation;
+          
+          setEvaluation({
+              mark: evaluation.overall,
+              score: `${Math.round((evaluation.technical + evaluation.clarity + evaluation.completeness) / 3)}%`
+          });
+
+          setChartData({
+              labels: ['Technical', 'Clarity', 'Completeness'],
+              datasets: [{
+                  data: [
+                      evaluation.technical,
+                      evaluation.clarity,
+                      evaluation.completeness
+                  ],
+                  backgroundColor: ['#4F46E5', '#10B981', '#F59E0B']
+              }]
+          });
       }
-    } catch (error) {
+  } catch (error) {
       console.error('Error evaluating answer:', error);
       alert('Failed to evaluate answer');
-    }
-  };
+  }
+};
 
-  // Question Toggle Handler
-  const toggleQuestion = (index) => {
-    setExpandedQuestions(prev => ({
-      ...prev,
-      [index]: !prev[index]
-    }));
-  };
+const handleRecordingClick = async (type) => {
+  if (recordingState === "idle") {
+      try {
+          const response = await fetch("http://localhost:8000/api/v1/resume/start-recording", {
+              method: "POST"
+          });
 
-  // Follow-up Questions Handler
-  const handleFollowUp = async () => {
-    if (!questionText || !answerText) {
+          const data = await response.json();
+          if (response.ok) {
+              setRecordingState(type === 'question' ? 'recordingQuestion' : 'recordingAnswer');
+          } else {
+              throw new Error(data.error || 'Failed to start recording');
+          }
+      } catch (error) {
+          console.error("Start recording error:", error);
+          alert("Failed to start recording: " + error.message);
+          setRecordingState("idle");
+      }
+  } else {
+      try {
+          setIsTranscribing(true);
+          const stopResponse = await fetch("http://localhost:8000/api/v1/resume/stop-recording", {
+              method: "POST"
+          });
+
+          const stopData = await stopResponse.json();
+          if (!stopResponse.ok) {
+              throw new Error(stopData.error || 'Failed to stop recording');
+          }
+
+          const filename = stopData.filename;
+          
+          const transcribeResponse = await fetch(`http://localhost:8000/api/v1/resume/transcribe?filename=${filename}`, {
+              method: "POST"
+          });
+
+          const transcribeData = await transcribeResponse.json();
+          
+          if (transcribeData.text) {
+              if (recordingState === "recordingQuestion") {
+                  setQuestionText(transcribeData.text);
+              } else {
+                  setAnswerText(transcribeData.text);
+              }
+          }
+      } catch (error) {
+          console.error("Recording error:", error);
+          alert("Recording failed: " + error.message);
+      } finally {
+          setRecordingState("idle");
+          setIsTranscribing(false);
+      }
+  }
+};
+
+// Update the follow-up questions handler
+const handleFollowUp = async () => {
+  if (!questionText || !answerText) {
       alert('Please record both question and answer first');
       return;
-    }
+  }
 
-    try {
-      const response = await fetch('http://localhost:8000/api/generate-follow-up', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          question: questionText,
-          answer: answerText
-        })
+  try {
+      const formData = new FormData();
+      formData.append('question', questionText);
+      formData.append('answer', answerText);
+
+      const response = await fetch('http://localhost:8000/api/v1/resume/generate-follow-up', {
+          method: 'POST',
+          body: formData
       });
 
       const data = await response.json();
-      if (data.followUpQuestions) {
-        setFollowUpQuestions(data.followUpQuestions);
+      if (data.prompt) {
+          setFollowUpQuestions([{ question: data.prompt }]);
       }
-    } catch (error) {
+  } catch (error) {
       console.error('Error generating follow-up questions:', error);
-    }
-  };
+  }
+
+};
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 relative">
